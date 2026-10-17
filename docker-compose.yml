@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: gacor_postgres
+    environment:
+      POSTGRES_DB: gacor_db
+      POSTGRES_USER: gacor_user
+      POSTGRES_PASSWORD: gacor_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./GACOR_DERCAS_PostgreSQL_v3_GPS.sql:/docker-entrypoint-initdb.d/001-gacor.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gacor_user -d gacor_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: gacor_api
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://gacor_user:gacor_password@postgres:5432/gacor_db
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:?Define AUTH_TOKEN_SECRET en .env}
+      JWT_EXPIRES_IN: 1d
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@gacor.com.gt}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run start:dev
+
+volumes:
+  pgdata:
